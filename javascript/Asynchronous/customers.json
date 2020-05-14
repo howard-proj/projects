@@ -1,0 +1,20 @@
+[
+    {
+        "id": 1,
+        "name": "John Doe",
+        "company": "123 Designs",
+        "phone": "444-555"
+    },
+    {
+        "id": 2,
+        "name": "Steve Smith",
+        "company": "ESPN",
+        "phone": "222-555"
+    },
+    {
+        "id": 3,
+        "name": "Lebron James",
+        "company": "NBA",
+        "phone": "111-555"
+    }
+]
