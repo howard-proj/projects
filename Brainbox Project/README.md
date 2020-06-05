@@ -6,4 +6,11 @@ Therefore, through software that can visualise varying input parameters on outpu
 
 The software was implemented towards signal isolation of eye movement events from an EOG. However, the concept may be generalised to include any time sequential event isolation problems, albeit requiring it's own ground truth generation algorithm. In this case, due to resource constraints, the concept was demonstrated using an SVM classifier alongside four input hyperparameters: classification window, sample proportion, cleaner window and cleaner threshold.
 
-Through a visualiztion with 4D plot, an optimization of REM sleep can be achieved. Simply record a waveform data, or use any of the data in this project for analysis.
+Through a 4D visualization, optimization of REM Sleep can be achieved. Simply record a waveform data, or use any of the data in this project for analysis. Randomize your data to visualize the best optimization!
+
+Choose the waveform data in the assets directory. Once saved, the data will be saved in saved directory. The naming convention follows the waveform data with .remdata as its extension. Upon loading the data, ensure the correct classifier is chosen from the original savepoint otherwise something cool will happen!
+
+
+
+
+Note: Mind the number of randmozation may take some time depending on the number of iterations
