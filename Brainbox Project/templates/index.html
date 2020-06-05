@@ -1,0 +1,902 @@
+    <!doctype html>
+    <html lang="en">
+    <head>
+        <title>Our REM Classifier</title>
+        <!-- Required meta tags -->
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+        <!-- Bootstrap CSS -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
+        <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.css">
+
+        <!-- D3.js -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"></script>
+        <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+        <!-- Plotly.js -->
+        <!-- <script src="https://cdn.plot.ly/plotly-latest.min.js"></script> -->
+        <script src="https://cdn.plot.ly/plotly-1.42.5.min.js"></script>
+
+        <style>
+        #loading, #results,
+        #random-extra-parameter-wrapper, #extra-parameter-wrapper,
+        #knn-k-extra, #svm-c-extra, #rf-t-extra,
+        #knn-k-range, #svm-c-range, #rf-t-range {
+            display: none;
+        }
+        .graph-image {
+            position: relative;
+            display: block;
+            width: 100%;
+        }
+        .title {
+            color: white;
+        }
+        .no-top {
+            margin-top: 0 !important;
+        }
+        .heading {
+            text-align: left;
+        }
+        /* #results-table {
+            display: none;
+        } */
+
+        .graph-image {
+            position: relative;
+            display: block;
+            width: 100%;
+        }
+        *, *::after, *::before {
+        box-sizing: border-box;
+        }
+
+        .message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            transition: 200ms ease-in-out;
+            border: 1px solid black;
+            border-radius: 10px;
+            z-index: 10;
+            background-color: white;
+            width: 1000px;
+            max-width: 80%;
+        }
+
+        .message.active {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .message-header {
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid black;
+        }
+
+        .message-header .title {
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+
+        .message-header .close-button {
+            cursor: pointer;
+            border: none;
+            outline: none;
+            background: none;
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+
+        .message-body {
+            padding: 10px 15px;
+            text-align: left;
+        }
+
+        #overlay {
+            position: fixed;
+            opacity: 0;
+            transition: 200ms ease-in-out;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, .5);
+            pointer-events: none;
+
+        }
+
+        #overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        #classify-type {
+            margin: auto;
+        }
+        </style>
+    </head>
+    <body class="bg-dark">
+        <div class="container">
+            <br/>
+            <br/>
+            <h1 class="title">Welcome to the REM Signal Isolator!</h1>
+            <div class="row no-top" id="results-table">
+                <div class="col-md-12 mx-auto no-top">
+                    <div class="card card-body text-center mt-5 no-top">
+                        <table id="table_id" class="display table responsive">
+                            <thead>
+                                <tr>
+                                    <th><small><b>Classifier</b></small></th>
+                                    <th><small><b>Sample Window</b></small></th>
+                                    <th><small><b>Sample Proportion</b></small></th>
+                                    <th><small><b>Cleaner Window</b></small></th>
+                                    <th><small><b>Cleaner Threshold</b></small></th>
+                                    <th><small><b>Extra Parameter</b></small></th>
+                                    <th><small><b>Accuracy (%)</b></small></th>
+                                    <th><small><b>Count</b></small></th>
+                                    <th><small><b>Count per Minute</b></small></th>
+                                    <th><small><b>REM State</b></small></th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-list"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <br/>
+            <div class="row no-top">
+                <div class="col-md-6 mx-auto no-top">
+                    <div class="card card-body text-center mt-5 no-top">
+                        <h3 class="heading display-5 pb-3">1. Pick a classifier.</h3>
+                        <div class="form-inline">
+                            <select id="classify-type" class="form-control" onchange="handleShowWrapperElement(this)">
+                                <option value="NN">Nearest Neighbor</option>
+                                <option value="SVM">Support Vector Machine</option>
+                                <option value="RF">Random Forest</option>
+                                <option value="MLP">MLP Classifier</option>
+                                <option value="GPC">Gaussian Process Classifier</option>
+                                <option value="DTC">Decision Tree Classifier</option>
+                                <option value="ADA">Ada Boost Classifier</option>
+                                <option value="GNB">Gaussian NB</option>
+                                <option value="QD">Quadratic Discriminant</option>
+                            </select>
+
+                        </div>
+                        <br>
+                        <div class="form-inline">
+                            <button class="btn btn-block" data-message-target="#message">Description</button>
+                            <div class="message" id="message">
+                                <div class="message-header">
+                                    <div class="progress-bar" id="myBar"></div>
+                                    <div class="title">Description</div>
+                                    <button data-close-button class="close-button">&times;</button>
+                                </div>
+                                <div class="message-body">
+
+                                    <br><b>Classification Window Size</b>: For data of a given size, Classification window size sets the size of the window which scans through the data and in which classifiations are performed.
+                                    <br><b>Classification Sample Proportion</b>: For large data, sample proportion can speed up classification latency by only running through a chosen proportion of the entire data.
+                                    <br><b>Cleaner's Window</b>: Takes a chosen number on consecutive classification windows and classifies an event as an eye movement if the ratio of classifications to the number of chosen windows is greater than Cleaner's threshold.
+                                    <br><b>Cleaner's Threshold</b>: Is a chosen threshold number between 0 and 1.
+                                    <br>
+                                    <b>SVM</b>: Finds the optimal hyperplane of variable margin size to separate and classify classes of data points in feature space.
+                                    <br><b>C</b>: Value of Cost, which allows adjusting of margin size during classification. Decreasing cost will correspond to increasing margin and will be more flexible with misclassifications.
+                                    <br>
+                                    <br><b>K Nearest Neighbours</b>: For a given number (K) of closest neighbours, KNN classifies a data point in feature space according to the most common class amongst its neighbours.
+                                    <br><b>K</b>: Number of nearest neighbours.
+                                    <br>
+                                    <br><b>Random Forests</b>: Consists of a large number of uncorrelated decision trees that operate as an ensemble. Decision trees split the data according to features in order to make resulting groups maximally different and member of groups maximally similar.
+                                    <br><b>T</b>: Number of decision trees.
+                                    <br>
+
+                                    <br><b>MLP Classifier</b>: Multilayer perceptron learns a complex mapping function with certain input and output dimensions. It has the capability to learn non-linear functions, and can have more hidden layers than logistic regression.
+                                    <br><b>Gaussian Process Classifier</b>: Gaussian process interpolates observations with kernels using probabilistic classification, implementing a series of functions to determine appropriate hyperparameters.
+                                    <br><b>Decision Tree Classifier</b>: Decision tree learns simple decision rules via boolean logic from given data.
+                                    <br> <b>Classifier</b>: Fits a series of weak learning models to modified versions of the data, taking a majority vote of the models to create weighted predictions.
+                                    <br><b>Gaussian NB</b>: Fits a naive Bayes function that assumes conditional independence of variables. Good classifier but bad estimator.
+                                    <br><b>Quadratic Discriminant</b>: Fits a simple quadratic decision surface for multi-class problems. A more general version of Gaussian NB.
+                                </div>
+                            </div>
+
+                            <div id="overlay"></div>
+                        </div>
+                        <hr>
+                        <h3 class="heading display-5 pb-3">2. Try the classifier...</h3>
+                        <form id="input-form">
+                            <div class="form-group">
+                                <div class="input-group">
+                                    <span class="input-group-addon" id="classifywindow-box" onmouseover="changeText(this, 'Sets the size of the window')" onmouseout="changeText(this, 'Classifier Window Size: ')">Classifier Window Size: </span>
+                                    <input type="number" class="form-control" id="classify-window" step="1" placeholder="Window Size (1000 - 100 000)" value="1000">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-group">
+                                    <span class="input-group-addon" id="classifysample-box" onmouseover="changeText(this, 'Speeds up classification latency')" onmouseout="changeText(this, 'Classifier Sample Proportion: ')">Classifier Sample Proportion: </span>
+                                    <input type="number" class="form-control" id="classify-proportion" step="0.001" placeholder="Classification Sample Proportion (0 - 1)" value="0.001">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-group">
+                                    <span class="input-group-addon" id="classifycleaner-box" onmouseover="changeText(this, 'Classify eye movement based on threshold')" onmouseout="changeText(this, 'Cleaner Window Size: ')">Cleaner Window Size: </span>
+                                    <input type="number" class="form-control" id="cleaner-window" step="1" placeholder="Cleaner Window Size (10 - 10 000)" value="100">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-group">
+                                    <span class="input-group-addon" id="classifythreshold-box" onmouseover="changeText(this, 'Chosen threshold between 0 and 1')" onmouseout="changeText(this, 'Cleaner Threshold: ')">Cleaner Threshold: </span>
+                                    <input type="number" class="form-control" id="cleaner-proportion" step="0.01" placeholder="Cleaner Threshold (0 - 1)" value="0.8">
+                                </div>
+                            </div>
+                            <div id="extra-parameter-wrapper">
+                                <div id="knn-k-extra">
+                                    <div class="form-group">
+                                        <div class="input-group">
+                                            <span class="input-group-addon">KNN's K: </span>
+                                            <input type="number" class="form-control" id="knn-k-input" step="1" placeholder="Nearest K" value="1">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="svm-c-extra">
+                                    <div class="form-group">
+                                        <div class="input-group">
+                                            <span class="input-group-addon">SVM's C: </span>
+                                            <input type="number" class="form-control" id="svm-c-input" step="0.01" placeholder="Cost of Fit" value="0.5">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="rf-t-extra">
+                                    <div class="form-group">
+                                        <div class="input-group">
+                                            <span class="input-group-addon">RF's N: </span>
+                                            <input type="number" class="form-control" id="rf-t-input" step="1" placeholder="Number of Trees" value="1">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <input type="submit" id="process_input" value="Calculate" class="btn btn-dark btn-block">
+                            </div>
+                        </form>
+
+                        <div id="results">
+                            <h5 id="final-results">Results</h5>
+
+                            <div class="form-group">
+                                <div class="input-group">
+                                    <span class="input-group-addon">Accuracy</span>
+                                    <input type="number" class="form-control" id="accuracy" disabled>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-group">
+                                    <span class="input-group-addon">Count</span>
+                                    <input type="number" class="form-control" id="count" disabled>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-group">
+                                    <span class="input-group-addon">Graph</span>
+                                    <input type="number" class="form-control" id="graph" disabled>
+                                </div>
+                                <!-- <img id="plotTruth" class="graph-image" src="/plotTruth" alt="plotTruth"> -->
+                                <img id="plotPrediction" class="graph-image" src="/plotPrediction" alt="plotPrediction">
+                            </div>
+                        </div>
+                            <hr>
+                            <form id="random-form">
+                                <h3 class="heading display-5 pb-3">2. Or randomise areas of interest...</h3>
+                                <div class="form-group">
+                                    <div class="input-group mb-3">
+                                      <div class="input-group-prepend">
+                                        <span class="input-group-addon" onmouseover="changeText(this, 'Sets the size of the window')" onmouseout="changeText(this, 'Classification Window Size: ')">Classification Window Size: </span>
+                                        </div>
+                                        <input type="number" class="form-control" id="classify-window-lower" step="1" placeholder="Lower Bound (>= 1 000)" value="100">
+                                        <input type="number" class="form-control" id="classify-window-upper" step="1" placeholder="Upper Bound (<= 10 000)" value="4000">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <div class="input-group">
+                                      <div class="input-group-prepend">
+                                        <span class="input-group-addon" onmouseover="changeText(this, 'Speeds up classification latency')" onmouseout="changeText(this, 'Classification Sample Proportion: ')">Classification Sample Proportion: </span>
+                                      </div>
+                                        <input type="number" class="form-control" id="classify-proportion-lower" step="0.001" placeholder="Lower Bound (>= 0.001)" value="0.001">
+                                        <input type="number" class="form-control" id="classify-proportion-upper" step="0.001" placeholder="Upper Bound (<= 0.1)" value="0.1">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <div class="input-group">
+                                      <div class="input-group-prepend">
+                                        <span class="input-group-addon" onmouseover="changeText(this, 'Classify eye movement based on threshold')" onmouseout="changeText(this, 'Cleaner Window Size: ')">Cleaner Window Size: </span>
+                                      </div>
+                                        <input type="number" class="form-control" id="cleaner-window-lower" step="1" placeholder="Lower Bound (>= 5)" value="1">
+                                        <input type="number" class="form-control" id="cleaner-window-upper" step="1" placeholder="Upper Bound (<= 500)" value="200">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <div class="input-group">
+                                      <div class="input-group-prepend">
+                                        <span class="input-group-addon" onmouseover="changeText(this, 'Chosen threshold between 0 and 1')" onmouseout="changeText(this, 'Cleaner Threshold: ')">Cleaner Threshold: </span>
+                                      </div>
+                                        <input type="number" class="form-control" id="cleaner-proportion-lower" step="0.01" placeholder="Lower Bound (>= 0.01)" value="0.6">
+                                        <input type="number" class="form-control" id="cleaner-proportion-upper" step="0.01" placeholder="Upper Bound (<= 1)" value="0.9">
+                                    </div>
+                                </div>
+
+                                <div id="random-extra-parameter-wrapper">
+                                <div id="knn-k-range">
+                                    <div class="form-group">
+                                        <div class="input-group">
+                                            <span class="input-group-addon">KNN's K: </span>
+                                            <input type="number" class="form-control" id="knn-k-lower" step="1" placeholder="Lower Bound (>= 1)" value="1">
+                                            <input type="number" class="form-control" id="knn-k-upper" step="1" placeholder="Upper Bound (<= N)" value="30">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="svm-c-range">
+                                    <div class="form-group">
+                                        <div class="input-group">
+                                            <span class="input-group-addon">SVM's C: </span>
+                                            <input type="number" class="form-control" id="svm-c-lower" step="0.01" placeholder="Lower Bound (> 0)" value="0.1">
+                                            <input type="number" class="form-control" id="svm-c-upper" step="0.01" placeholder="Upper Bound" value="5">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="rf-t-range">
+                                    <div class="form-group">
+                                        <div class="input-group">
+                                            <span class="input-group-addon">RF's N: </span>
+                                            <input type="number" class="form-control" id="rf-t-lower" step="1" placeholder="Lower Bound (> 0)" value="1">
+                                            <input type="number" class="form-control" id="rf-t-upper" step="1" placeholder="Upper Bound" value="50">
+                                        </div>
+                                    </div>
+                                </div>
+                                </div>
+                                <div class="form-group">
+                                    <div class="input-group">
+                                        <span class="input-group-addon">Iterations: </span>
+                                        <input type="number" class="form-control" id="iteration-number" step="1" placeholder="Number of iterations (> 0)" value="100">
+                                    </div>
+                                </div>
+
+
+                                <div class="form-group">
+                                    <input type="submit" id="random_input" value="Run" class="btn btn-dark btn-block">
+                                </div>
+                                <!-- <div id="random-results">
+                                    <div class="form-group">
+                                        <div class="input-group">
+                                            <span class="input-group-addon">Doing</span>
+                                            <input type="number" class="form-control" id="random-message" disabled>
+                                        </div>
+                                    </div>
+                                </div> -->
+                            </form>
+                    </div>
+                </div>
+                <div class="col-md-6 mx-auto no-top no-top">
+                    <div class="card card-body text-center mt-5 no-top">
+                        <h3 class="heading display-5 pb-3">3. Explore the Input Space!</h3>
+                        <div class="row">
+                          <form id="clear-form" class="col-md-4 mx-auto">
+                              <div class="form-group">
+                                  <input type="submit" id="process_input" value="Clear" class="btn btn-light btn-block">
+                              </div>
+                          </form>
+                          <form id="save-form" class="col-md-4 mx-auto">
+                              <div class="form-group">
+                                  <input type="submit" id="save_input" value="Save" class="btn btn-light btn-block">
+                              </div>
+                          </form>
+                          <form id="load-form" class="col-md-4 mx-auto">
+                              <div class="form-group">
+                                  <input type="submit" id="load_input" value="Load" class="btn btn-light btn-block">
+                              </div>
+                          </form>
+
+
+                        </div>
+                        <form id="axes-form">
+                            <div class="row">
+                                <div class="col-xs-3 col-md-4">
+                                    <label>Plot to X</label>
+                                    <select class="form-control" id ='to_x'>
+                                        <option value="C" selected>Count</option>
+                                        <option value="CW">Classifier Window</option>
+                                        <option value="CP">Classifier Proportion</option>
+                                        <option value="CCW">Cleaner Window</option>
+                                        <option value="CCP">Cleaner Threshold</option>
+                                        <option id="svm-c-option-x" value="EX">SVM Cost</option>
+                                        <option id="knn-k-option-x" value="EX">KNN K</option>
+                                        <option id="rf-t-option-x" value="EX">RF Trees</option>
+                                    </select>
+                                </div>
+                                <div class="col-xs-3 col-md-4">
+                                    <label>Plot to Y</label>
+                                    <select class="form-control" id ='to_y'>
+                                        <option value="C">Count</option>
+                                        <option value="CW" selected>Classifier Window</option>
+                                        <option value="CP">Classifier Proportion</option>
+                                        <option value="CCW">Cleaner Window</option>
+                                        <option value="CCP">Cleaner Threshold</option>
+                                        <option id="svm-c-option-y" value="EX">SVM Cost</option>
+                                        <option id="knn-k-option-y" value="EX">KNN K</option>
+                                        <option id="rf-t-option-y" value="EX">RF Trees</option>
+                                    </select>
+                                </div>
+                                <div class="col-xs-3 col-md-4">
+                                    <label>Plot to Z</label>
+                                    <select class="form-control" id ='to_z' >
+                                        <option value="C">Count</option>
+                                        <option value="CW">Classifier Window</option>
+                                        <option value="CP" selected>Classifier Proportion</option>
+                                        <option value="CCW">Cleaner Window</option>
+                                        <option value="CCP">Cleaner Threshold</option>
+                                        <option id="svm-c-option-z" value="EX">SVM Cost</option>
+                                        <option id="knn-k-option-z" value="EX">KNN K</option>
+                                        <option id="rf-t-option-z" value="EX">RF Trees</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <br/>
+                            <div class="form-group">
+                                <input type="submit" id="change_graph" value="Reload Graph" class="btn btn-block">
+                            </div>
+                        </form>
+                        <div id="plotlyChart" class="chart">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+        <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.js"></script>
+        <script type="text/javascript">
+            // $(document).ready(function () {
+            //     var t = $('#table_id').DataTable();
+            //     var tableResults =  {{ tableResults | tojson }};
+                
+            //     for (var i = 0; i < tableResults.length; i++) {
+            //         t.row.add([
+            //             tableResults[i].ClassifierType,
+            //             tableResults[i].ClassifierWindow,
+            //             tableResults[i].SampleProportion,
+            //             tableResults[i].CleanerWindow,
+            //             tableResults[i].CleanerThreshold,
+            //             tableResults[i].ExtraParameter,
+            //             tableResults[i].Accuracy,
+            //             tableResults[i].Count,
+            //             tableResults[i].CountMinute,
+            //             tableResults[i].REMState,
+            //         ]).draw(false);
+            //     }
+            // });
+            var updateChart = function(xCode, yCode, zCode, graphRaw) {
+                document.getElementById('results-table').style.display = 'block';
+                var getName = function(nameCode) {
+                    if (nameCode == "A") {
+                        return "Accuracy"
+                    }
+                    if (nameCode == "C") {
+                        return "Count"
+                    }
+                    if (nameCode == "CW") {
+                        return "Classifier Window"
+                    }
+                    if (nameCode == "CP") {
+                        return "Sample Proportion"
+                    }
+                    if (nameCode == "CCW") {
+                        return "Cleaner Window"
+                    }
+                    if (nameCode == "CCP") {
+                        return "Cleaner Threshold"
+                    }
+                    if (nameCode == "EX") {
+                        return "Extra Parameter"
+                    }
+                }
+                var xName = getName(xCode);
+                var yName = getName(yCode);
+                var zName = getName(zCode);
+                var graphData = JSON.parse(graphRaw);
+                console.log(graphData);
+                // graphData = {{ graphJSON | safe }};
+                layout = {
+                    title: 'Accuracy to Color Graph',
+                    showlegend: false,
+                    height: 400,
+                    margin: {
+                        l: 0,
+                        r: 0,
+                        b: 0,
+                        t: 100
+                    },
+                    scene: {
+                        xaxis: {
+                            title: xName,
+                        },
+                        yaxis: {
+                            title: yName,
+                        },
+                        zaxis: {
+                            title: zName,
+                        },
+                    }
+                };
+
+                Plotly.react('plotlyChart', graphData, layout);
+                console.log("Updated!");
+            }
+
+            function showWrapper() {
+                document.getElementById("random-extra-parameter-wrapper").style.display = 'block';
+                document.getElementById("extra-parameter-wrapper").style.display = 'block';
+            }
+
+            function handleShowWrapperElement(element) {
+                handleShowWrapper(element.value)
+            }
+
+            function handleShowWrapper(value) {
+                if (value == 'NN') {
+                    document.getElementById("knn-k-option-x").style.display = 'block';
+                    document.getElementById("knn-k-option-y").style.display = 'block';
+                    document.getElementById("knn-k-option-z").style.display = 'block';
+                    document.getElementById("svm-c-option-x").style.display = 'none';
+                    document.getElementById("svm-c-option-y").style.display = 'none';
+                    document.getElementById("svm-c-option-z").style.display = 'none';
+                    document.getElementById("rf-t-option-x").style.display = 'none';
+                    document.getElementById("rf-t-option-y").style.display = 'none';
+                    document.getElementById("rf-t-option-z").style.display = 'none';
+
+                    document.getElementById("knn-k-extra").style.display = 'block';
+                    document.getElementById("svm-c-extra").style.display = 'none';
+                    document.getElementById("rf-t-extra").style.display = 'none';
+
+                    document.getElementById("knn-k-range").style.display = 'block';
+                    document.getElementById("svm-c-range").style.display = 'none';
+                    document.getElementById("rf-t-range").style.display = 'none';
+                    showWrapper()
+                } else if (value == 'SVM') {
+                    document.getElementById("knn-k-option-x").style.display = 'none';
+                    document.getElementById("knn-k-option-y").style.display = 'none';
+                    document.getElementById("knn-k-option-z").style.display = 'none';
+                    document.getElementById("svm-c-option-x").style.display = 'block';
+                    document.getElementById("svm-c-option-y").style.display = 'block';
+                    document.getElementById("svm-c-option-z").style.display = 'block';
+                    document.getElementById("rf-t-option-x").style.display = 'none';
+                    document.getElementById("rf-t-option-y").style.display = 'none';
+                    document.getElementById("rf-t-option-z").style.display = 'none';
+
+                    document.getElementById("knn-k-extra").style.display = 'none';
+                    document.getElementById("svm-c-extra").style.display = 'block';
+                    document.getElementById("rf-t-extra").style.display = 'none';
+
+                    document.getElementById("knn-k-range").style.display = 'none';
+                    document.getElementById("svm-c-range").style.display = 'block';
+                    document.getElementById("rf-t-range").style.display = 'none';
+                    showWrapper()
+                } else if (value == 'RF') {
+                    document.getElementById("knn-k-option-x").style.display = 'none';
+                    document.getElementById("knn-k-option-y").style.display = 'none';
+                    document.getElementById("knn-k-option-z").style.display = 'none';
+                    document.getElementById("svm-c-option-x").style.display = 'none';
+                    document.getElementById("svm-c-option-y").style.display = 'none';
+                    document.getElementById("svm-c-option-z").style.display = 'none';
+                    document.getElementById("rf-t-option-x").style.display = 'block';
+                    document.getElementById("rf-t-option-y").style.display = 'block';
+                    document.getElementById("rf-t-option-z").style.display = 'block';
+
+                    document.getElementById("knn-k-extra").style.display = 'none';
+                    document.getElementById("svm-c-extra").style.display = 'none';
+                    document.getElementById("rf-t-extra").style.display = 'block';
+
+                    document.getElementById("knn-k-range").style.display = 'none';
+                    document.getElementById("svm-c-range").style.display = 'none';
+                    document.getElementById("rf-t-range").style.display = 'block';
+                    showWrapper()
+                } else {
+                    document.getElementById("knn-k-option-x").style.display = 'none';
+                    document.getElementById("knn-k-option-y").style.display = 'none';
+                    document.getElementById("knn-k-option-z").style.display = 'none';
+                    document.getElementById("svm-c-option-x").style.display = 'none';
+                    document.getElementById("svm-c-option-y").style.display = 'none';
+                    document.getElementById("svm-c-option-z").style.display = 'none';
+                    document.getElementById("rf-t-option-x").style.display = 'none';
+                    document.getElementById("rf-t-option-y").style.display = 'none';
+                    document.getElementById("rf-t-option-z").style.display = 'none';
+
+                    document.getElementById("random-extra-parameter-wrapper").style.display = 'none';
+                    document.getElementById("extra-parameter-wrapper").style.display = 'none';
+                }
+            }
+
+            document.getElementById('classifywindow-box');
+            document.getElementById('classifysample-box');
+            document.getElementById('classifycleaner-box');
+            document.getElementById('classifythreshold-box');
+
+            function changeText(obj, text) {
+                obj.innerText = text;
+            }
+            jQuery('#classify-type').after(function() {
+                handleShowWrapper(jQuery(this).val())
+            });
+
+            jQuery('#classify-type').change(function() {
+                handleShowWrapper(jQuery(this).val())
+            });
+
+            var getExtraInputId = function(inputType, isRange) {
+                if (inputType == "NN") {
+                    return "knn-k"
+                }
+                if (inputType == "SVM") {
+                    return "svm-c"
+                }
+                if (inputType == "RF") {
+                    return "rf-t"
+                }
+                return null
+            }
+
+            const openMessageButtons = document.querySelectorAll('[data-message-target]')
+            const closeMessageButtons = document.querySelectorAll('[data-close-button]')
+            const overlay = document.getElementById('overlay')
+
+            openMessageButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const message = document.querySelector(button.dataset.messageTarget);
+                    openMessage(message)
+                })
+            })
+            overlay.addEventListener('click', () => {
+                const messages= document.querySelectorAll('.message.active')
+                messages.forEach(message => {
+                    closeMessage(message)
+                })
+            })
+
+            closeMessageButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const message = button.closest('.message')
+                    closeMessage(message)
+                })
+            })
+
+            var getState = function(countMinute) {
+                if (Number.parseFloat(countMinute) < 7) {
+                    return "Deep"
+                } else if (Number.parseFloat(countMinute) < 23 && Number.parseFloat(countMinute) > 7) {
+                    return "REM"
+                } else {
+                    return "Wake"
+                }
+            }
+
+            function openMessage(message) {
+                if (message == null) return
+                message.classList.add('active')
+                overlay.classList.add('active')
+            }
+
+            function closeMessage(message) {
+                if (message == null) return;
+                message.classList.remove('active')
+                overlay.classList.remove('active')
+            }
+
+            $(function() {
+                $('#input-form').bind('submit', function() {
+                    var classifyType = $('select[id="classify-type"]').val();
+                    var extraId = getExtraInputId(classifyType);
+                    if (extraId == null) {
+                        extraId = ""
+                    } else {
+                        extraId = ''.concat('input[id="', extraId, '-input"]')
+                        extraId = $(extraId).val()
+                    }
+                    $.getJSON('/process', {
+                        classify_type: $('select[id="classify-type"]').val(),
+                        classify_window: $('input[id="classify-window"]').val(),
+                        classify_proportion: $('input[id="classify-proportion"]').val(),
+
+                        cleaner_window: $('input[id="cleaner-window"]').val(),
+                        cleaner_proportion: $('input[id="cleaner-proportion"]').val(),
+
+                        special_parameter: extraId,
+
+                        plot_x: $('select[id="to_x"]').val(),
+                        plot_y: $('select[id="to_y"]').val(),
+                        plot_z: $('select[id="to_z"]').val(),
+                    }, function(data) {
+                        console.log(data)
+                        document.getElementById('results').style.display = 'block';
+                        document.getElementById('accuracy').value = data['result'];
+                        document.getElementById('count').value = data['count'];
+
+                        var history_user = data['history_user'];
+                        var parameter = '';
+
+                        var the_classifier = document.getElementById('classify-type').value;
+
+                        console.log(history_user);
+                        console.log(the_classifier);
+                        if (the_classifier == 'SVM' || the_classifier == 'NN' || the_classifier == 'RF') {
+                            var extraId = getExtraInputId(the_classifier);
+                            extraId = ''.concat(extraId, '-input');
+                            console.log(extraId);
+                            parameter = document.getElementById(extraId).value;
+                        }
+                        else {
+                            parameter = 'none'
+                        }
+
+                        var predictREM = getState(history_user[0].CountMinute)
+
+                        $(document).ready(function () {
+                            var t = $('#table_id').DataTable();
+
+                            t.row.add([
+                                history_user[0].ClassifierType,
+                                history_user[0].ClassifierWindow,
+                                history_user[0].SampleProportion,
+                                history_user[0].CleanerWindow,
+                                history_user[0].CleanerThreshold,
+                                parameter,
+                                data['result'],
+                                history_user[0].Count,
+                                history_user[0].CountMinute,
+                                predictREM
+
+                            ]).draw(false);
+                        });
+
+                        var myImageElement = document.getElementById('plotPrediction');
+                        myImageElement.src = '/plotPrediction?index=' + Math.random();
+
+                        var xCode = $('select[id="to_x"]').val();
+                        var yCode = $('select[id="to_y"]').val();
+                        var zCode = $('select[id="to_z"]').val();
+                        updateChart(xCode, yCode, zCode, data["graphJSON"]);
+                    });
+                    return false;
+                });
+            });
+
+            $(function() {
+                $('#axes-form').bind('submit', function() {
+                    $.getJSON('/get_graph_only', {
+                        classify_type: $('select[id="classify-type"]').val(),
+                        plot_x: $('select[id="to_x"]').val(),
+                        plot_y: $('select[id="to_y"]').val(),
+                        plot_z: $('select[id="to_z"]').val(),
+                    }, function(data) {
+                        // console.log(data)
+                        var xCode = $('select[id="to_x"]').val();
+                        var yCode = $('select[id="to_y"]').val();
+                        var zCode = $('select[id="to_z"]').val();
+                        var zCode = $('select[id="to_z"]').val();
+                        updateChart(xCode, yCode, zCode, data["graphJSON"]);
+                    });
+
+                return false;
+                });
+            });
+
+
+            $(function() {
+                $('#random-form').bind('submit', function() {
+                    var currentType = $('select[id="classify-type"]').val();
+                    var extraId = getExtraInputId(currentType);
+                    var extraLowerId;
+                    var extraUpperId;
+                    if (extraId == null) {
+                        extraLowerId = ""
+                        extraUpperId = ""
+                    } else {
+                        extraLowerId = ''.concat('input[id="', extraId, '-lower"]');
+                        extraLowerId = $(extraLowerId).val();
+
+                        extraUpperId = ''.concat('input[id="', extraId, '-upper"]');
+                        extraUpperId = $(extraUpperId).val();
+                    }
+                    $.getJSON('/random_process', {
+                        // random_classify_type: $('select[id="random-classify-type"]').val(),
+                        random_classify_window_lower: $('input[id="classify-window-lower"]').val(),
+                        random_classify_window_upper: $('input[id="classify-window-upper"]').val(),
+                        random_classify_proportion_lower: $('input[id="classify-proportion-lower"]').val(),
+                        random_classify_proportion_upper: $('input[id="classify-proportion-upper"]').val(),
+
+                        random_cleaner_window_lower: $('input[id="cleaner-window-lower"]').val(),
+                        random_cleaner_window_upper: $('input[id="cleaner-window-upper"]').val(),
+                        random_cleaner_proportion_lower: $('input[id="cleaner-proportion-lower"]').val(),
+                        random_cleaner_proportion_upper: $('input[id="cleaner-proportion-upper"]').val(),
+
+                        random_iterations: $('input[id="iteration-number"]').val(),
+
+                        extra_parameter_upper: extraUpperId,
+                        extra_parameter_lower: extraLowerId,
+
+                        classify_type: $('select[id="classify-type"]').val(),
+                        plot_x: $('select[id="to_x"]').val(),
+                        plot_y: $('select[id="to_y"]').val(),
+                        plot_z: $('select[id="to_z"]').val(),
+                    }, function(data) {
+                        // console.log(data)
+                        var xCode = $('select[id="to_x"]').val();
+                        var yCode = $('select[id="to_y"]').val();
+                        var zCode = $('select[id="to_z"]').val();
+                        updateChart(xCode, yCode, zCode, data["graphJSON"]);
+
+                        // document.getElementById('random-results').style.display = 'block';
+                        // document.getElementById('random-message').value = data['result'];
+                    });
+
+                return false;
+                });
+            });
+
+            $(function() {
+                $('#clear-form').bind('submit', function() {
+                    $.getJSON('/clear', {
+                        classify_type: $('select[id="classify-type"]').val(),
+                        plot_x: $('select[id="to_x"]').val(),
+                        plot_y: $('select[id="to_y"]').val(),
+                        plot_z: $('select[id="to_z"]').val(),
+                    }, function(data) {
+                        var xCode = $('select[id="to_x"]').val();
+                        var yCode = $('select[id="to_y"]').val();
+                        var zCode = $('select[id="to_z"]').val();
+                        updateChart(xCode, yCode, zCode, data["graphJSON"]);
+
+                    });
+                    return false;
+                });
+
+                $('#save-form').bind('submit', function() {
+                    $.getJSON('/save');
+                    return false;
+                });
+
+                $('#load-form').bind('submit', function() {
+                    $.getJSON('/load', {
+                        classify_type: $('select[id="classify-type"]').val(),
+                        plot_x: $('select[id="to_x"]').val(),
+                        plot_y: $('select[id="to_y"]').val(),
+                        plot_z: $('select[id="to_z"]').val(),
+                    }, function(data) {
+                        var xCode = $('select[id="to_x"]').val();
+                        var yCode = $('select[id="to_y"]').val();
+                        var zCode = $('select[id="to_z"]').val();
+                        updateChart(xCode, yCode, zCode, data["graphJSON"]);
+                        // DO YO SHIT HERE //
+                        
+                        var outputBest = data['outputBest'];
+                        $(document).ready(function () {
+                            var t = $('#table_id').DataTable();
+                            for (var i = 0; i < outputBest.length; i++) {
+                                t.row.add([
+                                    outputBest[i].ClassifierType,
+                                    outputBest[i].ClassifierWindow,
+                                    outputBest[i].SampleProportion,
+                                    outputBest[i].CleanerWindow,
+                                    outputBest[i].CleanerThreshold,
+                                    outputBest[i].ExtraParameter,
+                                    outputBest[i].Accuracy,
+                                    outputBest[i].Count,
+                                    outputBest[i].CountMinute,
+                                    getState(outputBest[i].CountMinute),
+                                ]).draw(false);
+                            }
+                        });
+                    });
+                    return false;
+                });
+            });
+        </script>
+    </body>
+    </html>
